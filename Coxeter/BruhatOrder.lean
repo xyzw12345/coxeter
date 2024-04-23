@@ -197,20 +197,98 @@ def fin_list_complement {n : ℕ} {L : List (Fin n)} (Lincr : L.Pairwise (fun x 
 #eval fin_list_complement (by sorry : ([] : List (Fin 0)).Pairwise (fun x y => x < y))
 
 lemma fin_list_complement_loop_bound {n : ℕ} (cur : ℕ) {L : List (Fin n)} (Lincr : L.Pairwise (fun x y => x < y)) :
-    ∀ x : Fin n, x ∈ (fin_list_complement_loop cur Lincr) → cur ≤ x.1 := by
-  sorry
+    ∀ x : Fin n, x ∈ (fin_list_complement_loop cur Lincr) → cur ≤ x.1 :=
+  if h : n ≤ cur then by
+    intro x hx
+    have : fin_list_complement_loop cur Lincr = [] := by
+      unfold fin_list_complement_loop
+      simp only [h, ↓reduceDite]
+    have : x ∈ [] := by rw [this.symm]; exact hx
+    contradiction
+  else
+    have : n - (cur + 1) < n - cur := Nat.sub_succ_lt_self n cur (Nat.not_le.mp h)
+    match cur, L with
+    | cur, hd :: tail =>
+      if hh : cur = hd then by
+        intro x hx
+        have : x ∈ fin_list_complement_loop (cur + 1) (L := tail) (List.Pairwise.of_cons Lincr) := by
+          unfold fin_list_complement_loop at hx
+          simp only [h, ↓reduceDite, hh.symm, ↓reduceIte] at hx
+          exact hx
+        have : cur + 1 ≤ x.1 := fin_list_complement_loop_bound (n := n) (cur + 1) (List.Pairwise.of_cons Lincr) x this
+        linarith
+      else by
+        intro x hx
+        have : (x = ⟨cur, Nat.not_le.mp h⟩) ∨ (x ∈ fin_list_complement_loop (cur + 1) Lincr) := by
+          unfold fin_list_complement_loop at hx
+          simp only [h, ↓reduceDite, hh, ↓reduceIte, List.mem_cons] at hx
+          exact hx
+        rcases this with (hl | hr)
+        · have : x.val = cur := by rw[hl]
+          simp only [this, le_refl]
+        · have : cur + 1 ≤ x.1 := fin_list_complement_loop_bound (cur + 1) Lincr x hr
+          linarith
+    | cur, [] => by
+      intro x hx
+      have : (x = ⟨cur, Nat.not_le.mp h⟩) ∨ (x ∈ fin_list_complement_loop (cur + 1) Lincr) := by
+        unfold fin_list_complement_loop at hx
+        simp only [h, ↓reduceDite, List.mem_cons] at hx
+        exact hx
+      rcases this with (hl | hr)
+      · have : x.val = cur := by rw[hl]
+        simp only [this, le_refl]
+      · have : cur + 1 ≤ x.1 := fin_list_complement_loop_bound (cur + 1) Lincr x hr
+        linarith
+  termination_by (n - cur)
+
+lemma fin_list_complement_loop_incr {n : ℕ} {L : List (Fin n)} (cur : ℕ)(Lincr : L.Pairwise (fun x y => x < y)) :
+    (fin_list_complement_loop cur Lincr).Pairwise (fun x y => x < y) :=
+  if h : n ≤ cur then by
+    have : fin_list_complement_loop cur Lincr = [] := by
+      unfold fin_list_complement_loop
+      simp only [h, ↓reduceDite]
+    rw [this]
+    simp only [List.Pairwise.nil]
+  else
+    match cur, L with
+    | cur, hd :: tail =>
+      if hh : cur = hd then by
+        have : fin_list_complement_loop cur Lincr = fin_list_complement_loop (cur + 1) (List.Pairwise.of_cons Lincr) := by
+          have : fin_list_complement_loop cur Lincr = _ := by unfold fin_list_complement_loop; rfl
+          rw [this]
+          simp only [hh, ↓reduceIte, dite_eq_ite, ite_eq_right_iff, isEmpty_Prop, not_le, Fin.is_lt, IsEmpty.forall_iff]
+        rw [this]
+        exact fin_list_complement_loop_incr (cur + 1) (List.Pairwise.of_cons Lincr)
+      else by
+        have : fin_list_complement_loop cur Lincr = ⟨cur, Nat.not_le.mp h⟩ :: fin_list_complement_loop (cur + 1) Lincr := by
+          have : fin_list_complement_loop cur Lincr = _ := by unfold fin_list_complement_loop; rfl
+          rw [this]
+          simp only [h, ↓reduceDite, hh, ↓reduceIte]
+        simp only [this, List.pairwise_cons]
+        constructor
+        · intro a ha
+          have : cur + 1 ≤ a.val := by
+            exact fin_list_complement_loop_bound (cur + 1) Lincr a ha
+          show cur < a
+          linarith
+        · exact fin_list_complement_loop_incr (cur + 1) Lincr
+    | cur, [] => by
+      have : fin_list_complement_loop cur Lincr = ⟨cur, Nat.not_le.mp h⟩ :: fin_list_complement_loop (cur + 1) Lincr := by
+        have : fin_list_complement_loop cur Lincr = _ := by unfold  fin_list_complement_loop; rfl
+        rw [this]
+        simp only [h, ↓reduceDite]
+      simp only [this, List.pairwise_cons]
+      constructor
+      · intro a ha
+        have : cur + 1 ≤ a.val := by
+          exact fin_list_complement_loop_bound (cur + 1) Lincr a ha
+        show cur < a
+        linarith
+      · exact fin_list_complement_loop_incr (cur + 1) Lincr
+  termination_by n - cur
 
 lemma fin_list_complement_incr {n : ℕ} {L : List (Fin n)} (Lincr : L.Pairwise (fun x y => x < y)) :
-    (fin_list_complement Lincr).Pairwise (fun x y => x < y) := by
-  induction n with
-  | zero =>
-    have : (fin_list_complement Lincr) = [] :=
-      List.eq_nil_iff_forall_not_mem.mpr (fun a => (IsEmpty.false a).elim)
-    rw [this]
-    simp
-  | succ m ih =>
-    rw [fin_list_complement, fin_list_complement_loop]
-    sorry
+    (fin_list_complement Lincr).Pairwise (fun x y => x < y) := fin_list_complement_loop_incr 0 Lincr
 
 lemma fin_list_complement_complement {n : ℕ} (L : List (Fin n)) (Lincr : L.Pairwise (fun x y => x < y)) :
     fin_list_complement (fin_list_complement_incr Lincr) = L := by
